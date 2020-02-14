@@ -1,7 +1,7 @@
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.gson.JsonObject;
 import org.apache.poi.xssf.usermodel.*;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTTable;
 
@@ -61,7 +61,7 @@ public class ExcelUtil {
         /////////////////////////
     }
     /** returns all the tables inside this sheet in an map */
-    public Map<String,ArrayNode> convertTablesToListOfArrayNodes(String sheetName){
+    public Map<String,JsonNode> convertStationaryTable(String sheetName){
         XSSFWorkbook workbook=openWorkbook();
         XSSFSheet sheet=workbook.getSheet(sheetName); //1
         List<XSSFTable> tables=sheet.getTables();
@@ -77,6 +77,10 @@ public class ExcelUtil {
                 List<String> rowInList= new ArrayList<>();
                 for (int col = startCol; col <=endCol ; col++) {
                     XSSFCell cell=sheet.getRow(row).getCell(col);
+                    if(cell ==null){
+                        rowInList.add("-");
+                        continue;
+                    }
                     switch (cell.getCellType()){
                         case STRING:
                             rowInList.add(cell.getStringCellValue());
@@ -88,7 +92,7 @@ public class ExcelUtil {
                             break;
                         case FORMULA: rowInList.add(cell.getStringCellValue());
                             break;
-                        default: rowInList.add("2564");
+                        default: rowInList.add("*****");
                     }
                 }
                 tableInlist.add(rowInList);
@@ -96,8 +100,8 @@ public class ExcelUtil {
             tablesInMap.put(tbl.getName(), tableInlist);
         });
 
-        Map<String ,ArrayNode> jsonTables=new HashMap<>();
-        tablesInMap.forEach((k,v) -> jsonTables.put(k, toArrayNode(v)));
+        Map<String ,JsonNode> jsonTables=new HashMap<>();
+        tablesInMap.forEach((k,v) -> jsonTables.put(k, toJsonTree(v)));
        /* try {
             workbook.close();
         } catch (IOException e) {
@@ -123,21 +127,23 @@ public class ExcelUtil {
         return workbook;
     }
 
-    private ArrayNode toArrayNode(List<List<String>> list){
-        JsonObject allObjects=new JsonObject();
+    private JsonNode toJsonTree(List<List<String>> list){
         ObjectMapper mapper=new ObjectMapper();
-        ArrayNode allNodes= mapper.createArrayNode();
+        JsonNode rootNode= mapper.createObjectNode();
         for(int i=1; i<list.size(); i++){
-            JsonObject rowObject= new JsonObject();
+            String nodeKey= list.get(i).get(0);
             ObjectNode node= mapper.createObjectNode();
             for(int j=0; j< list.get(0).size(); j++){
-                rowObject.addProperty(list.get(0).get(j), list.get(i).get(j));
                 node.put(list.get(0).get(j), list.get(i).get(j));
             }
-            allObjects.add(i+"", rowObject);
-            allNodes.add(node);
+            if(rootNode.get(nodeKey) != null){
+                int id = rootNode.get(nodeKey).size();
+                ((ObjectNode)rootNode.get(nodeKey)).set(Integer.toString(id+1),node);
+            }else{
+                ((ObjectNode) rootNode).putObject(nodeKey).set("1", node);
+            }
         }
-        //System.out.println(allNodes);
-        return allNodes;
+        //System.out.println(rootNode);
+        return rootNode;
     }
 }
